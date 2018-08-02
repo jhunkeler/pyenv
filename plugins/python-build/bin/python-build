@@ -1503,6 +1503,22 @@ use_homebrew_openssl() {
   fi
 }
 
+get_system_cacert() {
+  local paths=(
+    /etc/ssl/cert.pem
+    /etc/ssl/cacert.pem
+    /etc/ssl/certs/cacert.pem
+    /etc/ssl/certs/ca-bundle.crt
+  )
+  for bundle in "${paths[@]}"
+  do
+    if [[ -f $bundle ]]; then
+        echo "$bundle"
+        break
+    fi
+  done
+}
+
 build_package_mac_openssl() {
   OPENSSL_VERSION_LTS='1.0.*'
   OPENSSL_VERSION_STABLE='1.1.*'
@@ -1546,10 +1562,16 @@ build_package_mac_openssl() {
 
   build_package_standard "$@"
 
-  # Extract root certs from the system keychain in .pem format and rehash.
   local pem_file="$OPENSSLDIR/cert.pem"
-  security find-certificate -a -p /Library/Keychains/System.keychain > "$pem_file"
-  security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain >> "$pem_file"
+  local bundle=$(get_system_cacert)
+
+  if [[ -n $bundle ]]; then
+    cat "$bundle" > "$pem_file"
+  else
+    # Extract root certs from the system keychain in .pem format and rehash.
+    security find-certificate -a -p /Library/Keychains/System.keychain > "$pem_file"
+    security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain >> "$pem_file"
+  fi
 }
 
 # Post-install check that the openssl extension was built.
